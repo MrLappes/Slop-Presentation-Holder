@@ -30,18 +30,20 @@ from pathlib import Path
 try:
     import pygame
     import fitz
+    from PIL import Image
     from piper.voice import PiperVoice
     from piper.config import SynthesisConfig
 except ImportError as e:
     print(f"Missing: {e}")
     print("Activate venv: source .venv/bin/activate")
-    print("Then: pip install piper-tts pymupdf pygame")
+    print("Then: pip install piper-tts pymupdf pygame Pillow")
     sys.exit(1)
 
 SCRIPT_DIR = Path(__file__).parent
 VOICES_DIR = SCRIPT_DIR / "voices"
 CACHE_DIR = SCRIPT_DIR / "audio_cache"
 PDF_PATH = SCRIPT_DIR / "Agentic_Shield_Zero_Trust.pdf"
+GIF_PATH = SCRIPT_DIR / "morshu-zelda.gif"
 
 # ── Presenter configs ──────────────────────────────────────────────
 
@@ -438,6 +440,64 @@ def load_slides_as_surfaces(screen_w, screen_h):
     return surfaces
 
 
+# ── Animated speaker GIF ──────────────────────────────────────────
+
+def load_speaker_frames(scale=2.0):
+    """Load GIF frames, tint per presenter color, remove black bg."""
+    if not GIF_PATH.exists():
+        print(f"  Speaker GIF not found: {GIF_PATH}")
+        return {}
+
+    gif = Image.open(str(GIF_PATH))
+    raw_frames = []
+    for i in range(gif.n_frames):
+        gif.seek(i)
+        frame = gif.convert("RGBA")
+        raw_frames.append(frame)
+
+    TARGET_R, TARGET_G, TARGET_B = 235, 78, 10  # #eb4e0a
+    TOLERANCE = 60
+
+    speaker_frames = {}
+    for name, cfg in PRESENTERS.items():
+        tint_r, tint_g, tint_b = cfg["color"]
+        tinted = []
+        for frame in raw_frames:
+            pixels = frame.load()
+            w, h = frame.size
+            new_frame = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            new_pixels = new_frame.load()
+            for y in range(h):
+                for x in range(w):
+                    r, g, b, a = pixels[x, y]
+                    brightness = (r + g + b) / 3.0
+                    if brightness < 30:
+                        new_pixels[x, y] = (0, 0, 0, 0)
+                    elif (abs(r - TARGET_R) < TOLERANCE and
+                          abs(g - TARGET_G) < TOLERANCE and
+                          abs(b - TARGET_B) < TOLERANCE):
+                        factor = brightness / 255.0
+                        nr = min(255, int(tint_r * factor))
+                        ng = min(255, int(tint_g * factor))
+                        nb = min(255, int(tint_b * factor))
+                        new_pixels[x, y] = (nr, ng, nb, a)
+                    else:
+                        new_pixels[x, y] = (r, g, b, a)
+
+            if scale != 1.0:
+                new_w = int(w * scale)
+                new_h = int(h * scale)
+                new_frame = new_frame.resize((new_w, new_h), Image.NEAREST)
+
+            data = new_frame.tobytes()
+            surf = pygame.image.frombuffer(data, new_frame.size, "RGBA")
+            tinted.append(surf)
+        speaker_frames[name] = tinted
+        print(f"  Speaker frames loaded: {name} ({len(tinted)} frames)")
+
+    return speaker_frames
+
+
 # ── Presentation engine ───────────────────────────────────────────
 
 def draw_presenter_badge(screen, name, slide_idx, total, font_big, font_small):
@@ -560,6 +620,34 @@ def fade_transition(screen, old_surf, new_surf, slide_img_rect, duration_ms=400)
     return True
 
 
+def render_frame(screen, slide_surfaces, current, num_slides,
+                 speaker_frames, gif_frame_idx, font_big, font_small, font_hint,
+                 show_controls):
+    surf = slide_surfaces[current]
+    sw, sh = screen.get_width(), screen.get_height()
+    img_x = (sw - surf.get_width()) // 2
+    img_y = (sh - surf.get_height()) // 2
+
+    screen.fill((0, 0, 0))
+    screen.blit(surf, (img_x, img_y))
+
+    presenter = SLIDES[current]["presenter"]
+    draw_presenter_badge(screen, presenter, current, num_slides, font_big, font_small)
+
+    if speaker_frames and presenter in speaker_frames:
+        frames = speaker_frames[presenter]
+        if frames:
+            frame_surf = frames[gif_frame_idx % len(frames)]
+            gx = sw - frame_surf.get_width() - 30
+            gy = sh - frame_surf.get_height() - 20
+            screen.blit(frame_surf, (gx, gy))
+
+    if show_controls:
+        draw_controls_hint(screen, font_hint)
+
+    pygame.display.flip()
+
+
 def run_presentation():
     pygame.init()
 
@@ -582,16 +670,26 @@ def run_presentation():
     print("Loading PDF slides...")
     slide_surfaces = load_slides_as_surfaces(screen_w, screen_h)
     num_slides = min(len(slide_surfaces), len(SLIDES))
+
+    print("Loading speaker GIF...")
+    speaker_frames = load_speaker_frames(scale=2.0)
+
     print(f"Loaded {num_slides} slides. Starting presentation.\n")
 
     current = 0
     prev_surface = None
     clock = pygame.time.Clock()
     auto_advance = True
-    need_redraw = True
+    need_slide_change = True
     need_transition = True
     show_controls = True
     controls_timer = time.time()
+    gif_frame_idx = 0
+    gif_paused_frame = 0
+    last_gif_advance = time.time()
+    gif_interval = 0.1
+    audio_was_playing = False
+    audio_done_time = None
 
     while True:
         for event in pygame.event.get():
@@ -611,25 +709,27 @@ def run_presentation():
 
                 elif event.key in (pygame.K_SPACE, pygame.K_RIGHT):
                     stop_audio()
+                    audio_done_time = None
                     if current < num_slides - 1:
                         prev_surface = slide_surfaces[current].copy()
                         current += 1
-                        need_redraw = True
+                        need_slide_change = True
                         need_transition = True
                     else:
-                        stop_audio()
                         pygame.quit()
                         return
 
                 elif event.key == pygame.K_LEFT:
                     stop_audio()
+                    audio_done_time = None
                     if current > 0:
                         prev_surface = slide_surfaces[current].copy()
                         current -= 1
-                        need_redraw = True
+                        need_slide_change = True
                         need_transition = True
 
                 elif event.key == pygame.K_r:
+                    audio_done_time = None
                     play_audio(current)
 
                 elif event.key == pygame.K_s:
@@ -650,19 +750,20 @@ def run_presentation():
                     slide_surfaces = load_slides_as_surfaces(
                         screen.get_width(), screen.get_height()
                     )
-                    need_redraw = True
+                    need_slide_change = True
                     need_transition = False
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
                     stop_audio()
+                    audio_done_time = None
                     if current < num_slides - 1:
                         prev_surface = slide_surfaces[current].copy()
                         current += 1
-                        need_redraw = True
+                        need_slide_change = True
                         need_transition = True
 
-        if need_redraw:
+        if need_slide_change:
             surf = slide_surfaces[current]
             sw, sh = screen.get_width(), screen.get_height()
             img_x = (sw - surf.get_width()) // 2
@@ -670,54 +771,47 @@ def run_presentation():
             img_rect = (img_x, img_y)
 
             if need_transition and prev_surface:
-                old_x = (sw - prev_surface.get_width()) // 2
-                old_y = (sh - prev_surface.get_height()) // 2
-                ok = fade_transition(
+                fade_transition(
                     screen, prev_surface, surf.copy(), img_rect, duration_ms=350
                 )
-                if not ok:
-                    stop_audio()
-                    pygame.quit()
-                    return
-            else:
-                screen.fill((0, 0, 0))
-                screen.blit(surf, img_rect)
 
-            presenter = SLIDES[current]["presenter"]
-            draw_presenter_badge(screen, presenter, current, num_slides,
-                                 font_big, font_small)
-
-            if show_controls and (time.time() - controls_timer < 5):
-                draw_controls_hint(screen, font_hint)
-
-            pygame.display.flip()
             play_audio(current)
-            need_redraw = False
+            gif_frame_idx = 0
+            audio_was_playing = True
+            audio_done_time = None
+            need_slide_change = False
             need_transition = False
             prev_surface = None
 
-        if auto_advance and not audio_playing() and not need_redraw:
-            if current < num_slides - 1:
-                time.sleep(0.8)
-                if not audio_playing():
-                    prev_surface = slide_surfaces[current].copy()
-                    current += 1
-                    need_redraw = True
-                    need_transition = True
+        is_playing = audio_playing()
 
-        # hide controls hint after 5 seconds
+        if is_playing:
+            now = time.time()
+            if now - last_gif_advance >= gif_interval:
+                gif_frame_idx += 1
+                last_gif_advance = now
+            gif_paused_frame = gif_frame_idx
+            audio_was_playing = True
+            audio_done_time = None
+
+        if audio_was_playing and not is_playing and audio_done_time is None:
+            audio_done_time = time.time()
+            audio_was_playing = False
+
         if show_controls and (time.time() - controls_timer > 5):
             show_controls = False
-            surf = slide_surfaces[current]
-            sw, sh = screen.get_width(), screen.get_height()
-            img_x = (sw - surf.get_width()) // 2
-            img_y = (sh - surf.get_height()) // 2
-            screen.fill((0, 0, 0))
-            screen.blit(surf, (img_x, img_y))
-            presenter = SLIDES[current]["presenter"]
-            draw_presenter_badge(screen, presenter, current, num_slides,
-                                 font_big, font_small)
-            pygame.display.flip()
+
+        render_frame(screen, slide_surfaces, current, num_slides,
+                     speaker_frames, gif_paused_frame if not is_playing else gif_frame_idx,
+                     font_big, font_small, font_hint, show_controls)
+
+        if auto_advance and audio_done_time and (time.time() - audio_done_time > 1.2):
+            if current < num_slides - 1:
+                prev_surface = slide_surfaces[current].copy()
+                current += 1
+                need_slide_change = True
+                need_transition = True
+                audio_done_time = None
 
         clock.tick(30)
 
