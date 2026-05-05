@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "name": "Agentic Shield",
+  "pdf_path": "../Agentic_Shield_Zero_Trust.pdf",
+  "gif": {
+    "path": "../morshu-zelda.gif",
+    "target_color": [235, 78, 10],
+    "tolerance": 60,
+    "scale": 2.0
+  },
+  "auto_advance": true,
+  "auto_advance_delay": 1.2,
+  "presenters": {
+    "Mike": {
+      "title": "Der Ernste",
+      "voice_model": "../voices/mike.onnx",
+      "speaker_id": null,
+      "length_scale": 1.0,
+      "noise_scale": 0.667,
+      "noise_w_scale": 0.8,
+      "color": [41, 128, 185],
+      "gif_mode": "tint"
+    },
+    "Nico": {
+      "title": "Der Aufgeregte",
+      "voice_model": "../voices/nico.onnx",
+      "speaker_id": null,
+      "length_scale": 0.88,
+      "noise_scale": 0.8,
+      "noise_w_scale": 0.9,
+      "color": [231, 76, 60],
+      "gif_mode": "tint"
+    },
+    "Luca": {
+      "title": "Der Chillige",
+      "voice_model": "../voices/luca.onnx",
+      "speaker_id": null,
+      "length_scale": 1.12,
+      "noise_scale": 0.5,
+      "noise_w_scale": 0.7,
+      "color": [46, 204, 113],
+      "gif_mode": "tint"
+    },
+    "Jarno": {
+      "title": "Der Dramatische",
+      "voice_model": "../voices/jarno.onnx",
+      "speaker_id": null,
+      "length_scale": 0.95,
+      "noise_scale": 0.9,
+      "noise_w_scale": 0.95,
+      "color": [155, 89, 182],
+      "gif_mode": "tint"
+    }
+  },
+  "slides": [
+    {
+      "presenter": "Mike",
+      "text": "Willkommen, meine Damen und Herren. Mein Name ist Mike, und ich präsentiere heute etwas, das Ihre IT-Abteilung nachts wachhalten wird. Und zwar zurecht. Agentic Shield: Zero Trust für KI. Wir haben jahrzehntelang Mauern um unsere Netzwerke gebaut. Firewalls, IDS, DLP, SIEM — Milliarden investiert. Und dann haben wir eine Tür aufgemacht, durch die unser gesamter Security-Stack nicht hindurchsehen kann. Diese Tür ist der LLM-API-Call. Jedes Mal wenn ein Mitarbeiter Copilot fragt, jedes Mal wenn ein Kunde mit unserem Chatbot spricht — das ist Traffic, für den unsere Firewall komplett blind ist. Heute zeige ich euch warum das ein Problem ist, und was wir dagegen tun."
+    },
+    {
+      "presenter": "Nico",
+      "text": "Oh Mann, Leute, jetzt wird es richtig spannend! Ich bin Nico und ich muss euch was zeigen, das ist der absolute Wahnsinn! Schaut euch das an! Links seht ihr, wie eine normale Web Application Firewall einen SQL-Injection-Angriff blockt. Peng, erledigt, kennen wir. ABER, und jetzt haltet euch fest, rechts seht ihr, was passiert wenn jemand einen natürlichsprachlichen Prompt schickt. Der fließt einfach durch! Wie Wasser durch ein Sieb! Warum? Weil LLMs keine Privilege Rings haben! Kein Ring Zero, kein Kernel Mode, nichts! System-Prompt und User-Input, alles im selben Kontext-Fenster, alles gleich behandelt. Das ist als ob ihr euren Haustürschlüssel und euren Tresorschlüssel zusammenklebt und dann sagt, wird schon passen. Irre!"
+    },
+    {
+      "presenter": "Luca",
+      "text": "Hey Leute, ich bin der Luca. Alles easy, keine Panik. Also, Chatbots plappern, Agenten handeln, so einfach ist das. Stellt euch vor, ein Chatbot ist wie euer Kumpel der euch was erzählt am Stammtisch. Kann Blödsinn reden, ist aber harmlos. Ein Agent dagegen, der hat eure Kreditkarte, euren Wohnungsschlüssel und euer Email-Passwort. Wenn der Blödsinn macht, dann wird es teuer. Der Nutzer formuliert ein Ziel, der Agent plant Schritte, greift auf APIs zu, verändert Datenbanken. Das Risiko hat sich komplett verlagert. Früher war das Schlimmste ein dummer Kommentar vom Chatbot. Heute kann ein manipulierter Agent eure komplette Infrastruktur umgraben. Aber hey, kein Stress, dafür sind wir ja hier."
+    },
+    {
+      "presenter": "Jarno",
+      "text": "Meine Damen und Herren, ich bin Jarno, und was ich euch jetzt zeige, das ist nichts Geringeres als die unheilige Dreifaltigkeit der KI-Sicherheit! Die Kill-Chain, die alles verändert! Oben haben wir LLM null sieben, System Prompt Leakage. Der Angreifer späht eure Verteidigungslinien aus, lernt eure Guardrails, kartografiert eure APIs! Dann, LLM null acht, Vector Poisoning! Payloads werden dauerhaft im RAG-Wissensspeicher platziert wie schlafende Agenten, bereit zum Zuschlagen! Und schließlich, LLM null eins, Prompt Injection! Die Waffe wird abgefeuert! Und das Perfide? Diese drei Schwachstellen sind keine isolierten Bugs. Sie verketten sich zu Compound Attacks, die jede Single-Layer-Defense zerreißen!"
+    },
+    {
+      "presenter": "Mike",
+      "text": "Mike wieder hier. Schauen wir uns einen konkreten Angriff an. Kein Theorie-Szenario, sondern ein echter, demonstrierter Angriff. ConfusedPilot, durchgeführt von Forschern der University of Texas gegen Microsoft 365 Copilot. Schritt eins: Der Angreifer versteckt unsichtbaren Text in einem PDF. Weißer Text auf weißem Hintergrund, für Menschen nicht sichtbar. Schritt zwei: Das RAG-System liest das Dokument ganz normal in die Vector Database ein. Nichts auffälliges. Schritt drei: Ein ahnungsloser Mitarbeiter bittet das LLM um eine Zusammenfassung. Schritt vier: Der versteckte Prompt wird ausgeführt, und das LLM exfiltriert Session-Daten über eine gerenderte Bild-URL. Und jetzt kommt der entscheidende Punkt: Der Nutzer hat nichts falsch gemacht. Das Modell hat perfekt funktioniert. Genau das ist das Problem."
+    },
+    {
+      "presenter": "Nico",
+      "text": "Nico ist zurück, und Leute, jetzt müsst ihr zuhören! Euer SOC, euer gesamtes Security Operations Center, ist blind! Und ich beweise es euch! Die WAF? Sieht validen JSON-Traffic! Weil Prompt Injection keine SQL-Injection ist. Es ist natürliche Sprache! Grammatisch korrekt, syntaktisch valide, semantisch vernichtend! IAM? Sieht eine valide API-Anfrage! Weil der Agent seine eigenen Credentials benutzt. Er wird zum Confused Deputy! DLP? Sieht eine gut formatierte, hilfreiche Antwort! Weil die Daten durch den normalen Antwortkanal des Modells abfließen! Und EDR? Sieht keinen Malware-Binary! Weil die Angriffsfläche das Context Window ist, nicht das Betriebssystem! Das ist wie wenn ein Einbrecher durch die Haustür spaziert, dem Sicherheitsdienst zulächelt, und der sagt: Der sieht nett aus, lass ihn rein! Wahnsinn!"
+    },
+    {
+      "presenter": "Luca",
+      "text": "So, ich bin es wieder, der Luca. Und nach all dem Drama von meinen Kollegen, ja ich schau dich an Jarno, kommen wir jetzt zur Lösung. Agentic Shield. Architektur statt Pflaster. Stellt euch vor: Links habt ihr den ganzen chaotischen, unberechenbaren KI-Kram. Prompts, RAG-Kontext, das Modell selbst. Alles untrusted. Rechts habt ihr eure wertvollen Enterprise-Ressourcen. APIs, Datenbanken, CI CD. Und dazwischen? Die Control Plane. Wie ein Türsteher im Club, der jeden einzeln prüft. Drei Grundregeln, ganz easy: Erstens, Zero Trust für KI. Kein Agent spricht jemals direkt mit kritischen Systemen. Zweitens, Separation of Concerns. Das Modell ist nicht für seine eigene Sicherheit zuständig. Drittens, deterministische Kontrolle. Jede Aktion wird außerhalb des LLMs validiert. Simpel, oder?"
+    },
+    {
+      "presenter": "Jarno",
+      "text": "Jarno hier, und bestaunt die Festung, die wir errichten! Sechs Schichten der Verteidigung! Layer eins, der Network Sentinel, inspiziert jeden einzelnen API-Call am Netzwerk-Egress! Layer zwei, die Prompt Firewall, Classifier-basierte Injection-Detection und Encoding-Screening! Jeder verdächtige Prompt wird abgefangen! Layer drei, der System Vault, Credentials bleiben in externen Tresoren, niemals im Prompt! Layer vier, RAG Security, Permission-aware Embeddings, Provenance-Tagging, Hidden-Text-Scanning! Layer fünf, der Output Guardian, PII-Masking mit Presidio, Hallucination Cross-Referencing! Und Layer sechs, SOC Integration, Centralized Tracing und Anomaly Detection! Sechs Schichten! Jede mit einem anderen Erkennungsmechanismus! Ein Angreifer müsste alle überwinden!"
+    },
+    {
+      "presenter": "Mike",
+      "text": "Mike hier, und jetzt wird es technisch. Der Runtime Enforcement Loop. Sicherheit in Millisekunden. Sechs Schritte, die bei jeder einzelnen Interaktion ablaufen. Erstens: Observe. Input und Kontext werden klassifiziert. Zweitens: Plan. Der Agentenplan wird extrahiert und analysiert. Was hat der Agent vor? Drittens: Decide. Der Policy Decision Point prüft RBAC, Risiko und Kosten. Deterministisch, nicht vom LLM gesteuert. Viertens: Act. Das Tool-Gateway führt die Aktion nur über eine Allowlist aus. Fünftens: Verify. Output und Nebenwirkungen werden geprüft. Und sechstens: Learn. Der gesamte Trace geht ans SIEM, Detection-Regeln werden aktualisiert. Und im Zentrum steht: Human-in-the-Loop ist zwingend bei irreversiblen oder externen Aktionen. Eine E-Mail senden, eine Datenbank ändern, da fragt das System erst nach."
+    },
+    {
+      "presenter": "Nico",
+      "text": "Ich bin so begeistert von dieser Folie! Nico hier! Und schaut euch an wie der Shield die Kill-Chain zerschmettert! Erinnert ihr euch an die unheilige Dreifaltigkeit? LLM null sieben, null eins, null acht? Links seht ihr die Bedrohung. Der Angreifer versucht Prompt Injection, System Prompt Extraction und Data Exfiltration. Und rechts? Transformation! Die drei Schilde zerbrechen die Kill-Chain! Layer drei, der System Vault, Canary Tokens triggern sofort einen Alarm wenn jemand die Guardrails abfragen will! Layer zwei, die Prompt Firewall, semantische Evaluation droppt Payloads bevor das LLM sie überhaupt verarbeitet! Layer vier, RAG Security, alle eingespeisten Daten werden von unsichtbaren Zeichen gereinigt und an Access Levels gebunden! Die Kill-Chain? Gebrochen! Zerstört! Pulverisiert!"
+    },
+    {
+      "presenter": "Luca",
+      "text": "Hey, Luca hier nochmal. Reden wir über was Wichtiges. Eure Daten und die DSGVO. Weil Leute, wenn ihr vertrauliche Daten einfach so in ein LLM Context Window schiebt, dann ist das kein Feature, das ist ein Albtraum. Agentic Shield behandelt vertrauliche Daten nicht als normales Kontextmaterial. Schritt eins: Detect. PII, Secrets, IDs werden identifiziert. Schritt zwei: Minimize. Redaction vor dem Model-Call. Schritt drei: Isolate. Sensible Workloads laufen in dedizierten Tenants. Schritt vier: Control. Purpose Binding und Export-Restrictions. Und Schritt fünf: Prove. Audit Trail mit Hashes, alles nachweisbar. Denn Leute, Artikel 83 DSGVO ist kein Spaß. Bis zu 20 Millionen Euro oder vier Prozent des weltweiten Jahresumsatzes. KI-Kontextfenster sind keine sicheren Datenbanken. Aber jetzt wisst ihr, wie man es richtig macht."
+    },
+    {
+      "presenter": "Jarno",
+      "text": "Jarno spricht! Und hört mir gut zu! Wir bauen hier keine neue Schatten-IT auf! Kein isoliertes Silo! Kein Elfenbeinturm! Agentic Shield integriert sich nahtlos in euer bestehendes Splunk oder Sentinel SIEM! In der Dev-Phase: Threat Modeling, AI Bill of Materials, Prompt Tests. Beim Deploy: Config Baselines und strikte Tool-Allowlists. Zur Runtime: Telemetrie gemappt auf MITRE ATLAS, den Standard für adversarial Machine Learning! Und beim Respond: SOAR Integration, automatisierter Kill-Switch und Incident Evidence Export! Von der Entwicklung bis zum Incident Response. Alles durchgeplant, alles integriert, nichts dem Zufall überlassen!"
+    },
+    {
+      "presenter": "Mike",
+      "text": "Mike zum letzten Mal, und jetzt wird es konkret. Die 90-Tage Rollout Roadmap. Phase eins, die ersten 30 Tage: Inventory und Visibility. Wir erfassen alle Agenten, Shadow-AI, Tools und Datenquellen. Der Network Sentinel geht live. Wir wissen endlich, was in unserem Netzwerk an KI-Traffic läuft. Phase zwei, Tag 31 bis 60: Control Plane MVP. Prompt Firewall und RAG Gateway für zwei Pilot-Use-Cases. Scoped Tokens statt Vollzugriff. Phase drei, Tag 61 bis 90: Policy Hardening. Default-Deny für Tools. Approval Flows mit Human-in-the-Loop. Und Red-Team Tests gegen die gesamte Architektur. Phase vier, ab Tag 90: Scale und Operate. Mandantenfähige Plattform ausrollen, SecOps Playbooks scharfschalten. Strategie: Zentrale Plattform, nicht isolierte SDKs in jedem Team."
+    },
+    {
+      "presenter": "Nico",
+      "text": "Letzte Folie Leute, und Nico gibt euch den finalen Weckruf! Die Frage ist nicht, ob eure LLMs angegriffen werden. Die Frage ist, ob ihr es merkt, wenn es passiert! Und jetzt mal ehrlich, mit eurem jetzigen Setup? Merkt ihr es nicht! Deshalb: Zentrale Control Plane statt isolierter Silos beauftragen! OWASP Top 10 for LLMs in den Architekturstandard aufnehmen! Agentic Shield Pilot auf zwei kritische Use-Cases starten. HR und Code-Gen zum Beispiel! Und einen verbindlichen Kill-Switch im SOC Runbook verankern! Das Fenster ist jetzt offen, Leute! LLM-Adoption beschleunigt, Security hinkt hinterher, Regulierung zieht an. Wer jetzt handelt, hat einen Vorsprung. Wer wartet, naja, der liest irgendwann seinen System-Prompt auf Twitter. Vielen Dank!"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Agentic Shield — Presentation Setup
+# Slop Presentation Holder — Setup
 # Creates venv, installs deps, downloads 4 German TTS voice models
 
 set -e
@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 echo "============================================"
-echo "  Agentic Shield — Setup"
+echo "  Slop Presentation Holder — Setup"
 echo "============================================"
 echo
 
@@ -33,7 +33,7 @@ if [ ! -d .venv ]; then
     python -m venv .venv
 fi
 source .venv/bin/activate
-pip install --quiet piper-tts pymupdf pygame
+pip install --quiet -r requirements.txt
 echo "  Python packages installed."
 
 # 3. Download voice models
@@ -61,7 +61,7 @@ echo
 echo "============================================"
 echo "  Setup complete!"
 echo ""
-echo "  Run the presentation:"
+echo "  Launch the app:"
 echo "    source .venv/bin/activate"
-echo "    python present.py"
+echo "    python slop.py"
 echo "============================================"
