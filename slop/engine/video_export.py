@@ -80,9 +80,11 @@ def export_mp4(
         width: Video width in pixels.
         height: Video height in pixels.
         fps: Frames per second.
-        progress_callback: Optional callable(current_slide, total_slides, message).
+        progress_callback: Optional callable(current_frame, total_frames, message).
         abort_flag: Optional callable returning True to abort export.
     """
+    import time
+
     pdf_path = Path(project_data["pdf_path"])
     slides = project_data["slides"]
     presenters = project_data["presenters"]
@@ -111,7 +113,7 @@ def export_mp4(
         font_hint = pygame.font.Font(None, 18)
 
     if progress_callback:
-        progress_callback(0, num_slides, "Loading assets...")
+        progress_callback(0, 0, "Loading slides and assets...")
 
     slide_surfaces = load_slides_as_surfaces(pdf_path, width, height)
 
@@ -144,14 +146,29 @@ def export_mp4(
             "delay_frames": delay_frames,
         })
 
+    # Precompute total frame count for accurate progress
+    total_frames = 0
+    for i in range(num_slides):
+        if i > 0:
+            total_frames += transition_frames + 1
+        total_frames += slide_timings[i]["audio_frames"] + slide_timings[i]["delay_frames"]
+
+    total_duration = total_frames / fps
+    frames_written = 0
+    start_time = None
+
+    def report(msg):
+        if not progress_callback:
+            return
+        progress_callback(frames_written, total_frames, msg)
+
     # Build combined audio
     tmp_audio = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
     tmp_audio_path = Path(tmp_audio.name)
     tmp_audio.close()
 
     try:
-        if progress_callback:
-            progress_callback(0, num_slides, "Building audio track...")
+        report(f"Building audio track ({num_slides} slides)...")
 
         build_combined_audio(
             slide_audio_paths, auto_advance_delay, fade_duration, tmp_audio_path,
@@ -184,24 +201,35 @@ def export_mp4(
             stderr=subprocess.PIPE,
         )
 
+        start_time = time.monotonic()
+
         def pipe_frame():
+            nonlocal frames_written
             raw = pygame.image.tobytes(screen, "RGB")
             ffmpeg_proc.stdin.write(raw)
+            frames_written += 1
 
         def check_abort():
             if abort_flag and abort_flag():
                 ffmpeg_proc.kill()
                 raise InterruptedError("Export cancelled")
 
+        def eta_str():
+            if not start_time or frames_written < fps:
+                return ""
+            elapsed = time.monotonic() - start_time
+            rate = frames_written / elapsed
+            remaining = (total_frames - frames_written) / rate
+            m, s = divmod(int(remaining), 60)
+            return f" · ~{m}:{s:02d} left" if m else f" · ~{s}s left"
+
         # Render frames
         for slide_idx in range(num_slides):
             check_abort()
 
-            if progress_callback:
-                progress_callback(slide_idx, num_slides, f"Rendering slide {slide_idx + 1}...")
-
             # Fade transition (not for first slide)
             if slide_idx > 0:
+                report(f"Slide {slide_idx + 1}/{num_slides} — Transition{eta_str()}")
                 old_surf = slide_surfaces[slide_idx - 1].copy()
                 new_surf = slide_surfaces[slide_idx].copy()
                 sw, sh = screen.get_width(), screen.get_height()
@@ -219,8 +247,12 @@ def export_mp4(
             audio_fc = slide_timings[slide_idx]["audio_frames"]
             delay_fc = slide_timings[slide_idx]["delay_frames"]
             total_slide_frames = audio_fc + delay_fc
+            slide_dur = total_slide_frames / fps
+
+            report(f"Slide {slide_idx + 1}/{num_slides} — Rendering ({slide_dur:.1f}s){eta_str()}")
 
             gif_frame_idx = 0
+            update_interval = max(1, fps)
             for frame_num in range(total_slide_frames):
                 check_abort()
                 is_audio_phase = frame_num < audio_fc
@@ -236,7 +268,12 @@ def export_mp4(
                 )
                 pipe_frame()
 
+                if frame_num % update_interval == 0:
+                    phase = "Speaking" if is_audio_phase else "Pause"
+                    report(f"Slide {slide_idx + 1}/{num_slides} — {phase}{eta_str()}")
+
         # Finalize
+        report("Finalizing video...")
         ffmpeg_proc.stdin.close()
         _, stderr = ffmpeg_proc.communicate(timeout=120)
 
@@ -244,8 +281,9 @@ def export_mp4(
             err_msg = stderr.decode("utf-8", errors="replace")[-500:]
             raise RuntimeError(f"ffmpeg failed (code {ffmpeg_proc.returncode}):\n{err_msg}")
 
-        if progress_callback:
-            progress_callback(num_slides, num_slides, "Export complete")
+        elapsed = time.monotonic() - start_time
+        m, s = divmod(int(elapsed), 60)
+        report(f"Done — {total_duration:.0f}s video in {m}:{s:02d}")
 
     except InterruptedError:
         if output_path.exists():

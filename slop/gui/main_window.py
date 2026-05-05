@@ -384,14 +384,19 @@ class MainWindow(QMainWindow):
         if not path:
             return
 
-        progress = QProgressDialog("Exporting video...", "Cancel", 0, len(self._project.slides), self)
+        progress = QProgressDialog("Preparing export...", "Cancel", 0, 0, self)
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.setMinimumDuration(0)
+        progress.setMinimumWidth(420)
+
+        def _on_export_progress(cur, tot, msg):
+            if tot > 0 and progress.maximum() != tot:
+                progress.setMaximum(tot)
+            progress.setValue(cur)
+            progress.setLabelText(msg)
 
         self._export_thread = MP4ExportThread(self._project, path)
-        self._export_thread.progress.connect(
-            lambda cur, tot, msg: (progress.setValue(cur), progress.setLabelText(msg))
-        )
+        self._export_thread.progress.connect(_on_export_progress)
         self._export_thread.finished_ok.connect(lambda p: self._on_export_mp4_done(progress, p))
         self._export_thread.error.connect(lambda e: self._on_export_mp4_error(progress, e))
         progress.canceled.connect(self._export_thread.abort)
