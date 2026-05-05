@@ -1,0 +1,13 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Claude Code
+.claude/
+
+# Generated audio (regenerated on first run)
+audio_cache/
+
+# Voice models (downloaded via setup.sh, ~300MB)
+voices/
