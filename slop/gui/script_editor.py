@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QPlainTextEdit, QLabel, QComboBox, QPushButton, QSplitter,
     QMessageBox,
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QPixmap, QIcon
 
 from pathlib import Path
@@ -20,6 +20,10 @@ class ScriptEditor(QWidget):
         self._thumbnails = []
         self._current_idx = -1
         self._updating = False
+        self._player = None
+        self._playback_timer = QTimer(self)
+        self._playback_timer.setInterval(250)
+        self._playback_timer.timeout.connect(self._check_playback)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -142,6 +146,7 @@ class ScriptEditor(QWidget):
     def _on_slide_selected(self, row):
         if row < 0 or not self._project or row >= len(self._project.slides):
             return
+        self.stop_audio()
         self._current_idx = row
         self._updating = True
 
@@ -196,9 +201,26 @@ class ScriptEditor(QWidget):
         words = len(text.split()) if text.strip() else 0
         self._word_count.setText(f"{words} words")
 
+    def stop_audio(self):
+        if self._player:
+            self._player.stop()
+        self._playback_timer.stop()
+        self._preview_btn.setText("Preview Audio")
+
+    def _check_playback(self):
+        if not self._player or not self._player.is_playing():
+            self._playback_timer.stop()
+            self._preview_btn.setText("Preview Audio")
+
     def _on_preview_audio(self):
         if self._current_idx < 0 or not self._project:
             return
+
+        if self._player and self._player.is_playing():
+            self._player.stop()
+            self._preview_btn.setText("Preview Audio")
+            return
+
         slide = self._project.slides[self._current_idx]
         if not slide.text.strip():
             QMessageBox.information(self, "Preview", "No text to preview.")
@@ -226,8 +248,11 @@ class ScriptEditor(QWidget):
                 str(self._project.resolve_voice_model(slide.presenter)),
                 tts_params,
             )
-            player = AudioPlayer()
-            player.play(wav_path)
+            if not self._player:
+                self._player = AudioPlayer()
+            self._player.play(wav_path)
+            self._preview_btn.setText("Stop Audio")
+            self._playback_timer.start()
         except Exception as e:
             QMessageBox.warning(self, "Preview Error", str(e))
 

@@ -159,6 +159,8 @@ class MainWindow(QMainWindow):
         self._tabs.addTab(self._presenter_mgr, "Presenters")
 
         self._voice_browser = VoiceBrowser()
+        self._voice_browser.models_changed.connect(self._on_voice_models_changed)
+        self._voice_browser.model_renamed.connect(self._on_voice_model_renamed)
         self._tabs.addTab(self._voice_browser, "Voice Library")
 
     def _mark_dirty(self):
@@ -176,10 +178,34 @@ class MainWindow(QMainWindow):
         self._update_title()
         self._script_editor.load_project(project)
         self._presenter_mgr.load_project(project)
+        self._voice_browser.set_project(project)
 
     def _on_presenters_changed(self):
         self._mark_dirty()
         self._script_editor.refresh_presenters()
+
+    def _on_voice_models_changed(self):
+        self._presenter_mgr._refresh_voice_models()
+
+    def _on_voice_model_renamed(self, old_path, new_path):
+        if not self._project:
+            return
+        changed = False
+        for name, cfg in self._project.presenters.items():
+            resolved = str(self._project.resolve_voice_model(name))
+            if resolved == old_path or cfg.voice_model == old_path:
+                try:
+                    new_rel = str(Path(new_path).relative_to(self._project.base_dir))
+                except ValueError:
+                    new_rel = new_path
+                cfg.voice_model = new_rel
+                changed = True
+        if changed:
+            self._presenter_mgr._refresh_voice_models()
+            row = self._presenter_mgr._list.currentRow()
+            if row >= 0:
+                self._presenter_mgr._on_selected(row)
+            self._mark_dirty()
 
     # ── File operations ──────────────────────────────────────────
 
@@ -422,6 +448,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Present", "PDF file not found.")
             return
 
+        self._script_editor.stop_audio()
         engine_dict = self._project.to_engine_dict()
 
         self.hide()

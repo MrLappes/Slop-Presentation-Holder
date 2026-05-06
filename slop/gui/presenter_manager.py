@@ -21,6 +21,7 @@ class PresenterManager(QWidget):
         self._project = None
         self._current_name = None
         self._updating = False
+        self._player = None
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -340,6 +341,12 @@ class PresenterManager(QWidget):
     def _on_preview_voice(self):
         if not self._current_name or not self._project:
             return
+
+        if self._player and self._player.is_playing():
+            self._player.stop()
+            self._preview_voice_btn.setText("Preview Voice")
+            return
+
         cfg = self._project.presenters.get(self._current_name)
         if not cfg or not cfg.voice_model:
             QMessageBox.information(self, "Preview", "No voice model selected.")
@@ -360,7 +367,9 @@ class PresenterManager(QWidget):
 
             text = f"Hallo, mein Name ist {self._current_name}. Ich bin bereit zu präsentieren."
             wav = engine.preview_text(text, str(self._project.resolve_voice_model(self._current_name)), tts_params)
-            player = AudioPlayer()
-            player.play(wav)
+            if not self._player:
+                self._player = AudioPlayer()
+            self._player.play(wav)
+            self._preview_voice_btn.setText("Stop Voice")
         except Exception as e:
             QMessageBox.warning(self, "Preview Error", str(e))
