@@ -170,6 +170,28 @@ class PresenterManager(QWidget):
             pass
         self._voice_combo.blockSignals(False)
 
+    def _select_voice_model(self, model_path: str) -> None:
+        if not model_path:
+            return
+
+        candidate = Path(model_path)
+        if self._project and not candidate.is_absolute():
+            candidate = self._project.base_dir / candidate
+
+        candidate_str = str(candidate)
+        candidate_name = candidate.stem
+
+        for i in range(self._voice_combo.count()):
+            item_path = self._voice_combo.itemData(i)
+            item_name = self._voice_combo.itemText(i)
+            if item_path == candidate_str or item_name == candidate_name:
+                self._voice_combo.setCurrentIndex(i)
+                return
+
+        suffix = "current" if candidate.exists() else "missing"
+        self._voice_combo.addItem(f"{candidate_name} ({suffix})", candidate_str)
+        self._voice_combo.setCurrentIndex(self._voice_combo.count() - 1)
+
     def _on_selected(self, row):
         if row < 0 or not self._project or self._updating:
             return
@@ -186,10 +208,7 @@ class PresenterManager(QWidget):
         self._title_edit.setText(cfg.title)
 
         # Voice model
-        model_name = Path(cfg.voice_model).stem if cfg.voice_model else ""
-        idx = self._voice_combo.findText(model_name)
-        if idx >= 0:
-            self._voice_combo.setCurrentIndex(idx)
+        self._select_voice_model(cfg.voice_model)
 
         self._update_speaker_ids()
         if cfg.speaker_id is not None:
@@ -223,12 +242,12 @@ class PresenterManager(QWidget):
         self._speaker_combo.clear()
         self._speaker_combo.addItem("Default", None)
 
-        model_name = self._voice_combo.currentText()
-        if model_name:
+        voice_path = self._voice_combo.currentData()
+        if voice_path:
             try:
                 from slop.voices.model_registry import VoiceModelRegistry
                 registry = VoiceModelRegistry()
-                info = registry.get_installed_model(model_name)
+                info = registry.get_installed_model(Path(str(voice_path)).stem)
                 if info and info.get("speaker_id_map"):
                     for speaker_name, sid in info["speaker_id_map"].items():
                         self._speaker_combo.addItem(speaker_name, sid)
@@ -273,15 +292,13 @@ class PresenterManager(QWidget):
 
         cfg.title = self._title_edit.text()
 
-        voice_name = self._voice_combo.currentText()
-        if voice_name:
-            voice_path = self._voice_combo.currentData()
-            if voice_path:
-                try:
-                    rel = Path(voice_path).relative_to(self._project.base_dir)
-                    cfg.voice_model = str(rel)
-                except ValueError:
-                    cfg.voice_model = str(voice_path)
+        voice_path = self._voice_combo.currentData()
+        if voice_path:
+            try:
+                rel = Path(str(voice_path)).relative_to(self._project.base_dir)
+                cfg.voice_model = str(rel)
+            except ValueError:
+                cfg.voice_model = str(voice_path)
 
         speaker_data = self._speaker_combo.currentData()
         cfg.speaker_id = speaker_data

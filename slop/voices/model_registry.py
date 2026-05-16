@@ -21,6 +21,73 @@ class VoiceModelRegistry:
         self._catalog: dict[str, dict] = {}
 
     @staticmethod
+    def _join_url(base_url: str, relative_path: str) -> str:
+        base_url = base_url.rstrip("/")
+        relative_path = relative_path.lstrip("/")
+        return f"{base_url}/{relative_path}"
+
+    @staticmethod
+    def _url_json(url: str) -> dict:
+        with urllib.request.urlopen(url, timeout=30) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        if not isinstance(data, dict):
+            raise ValueError(f"Unexpected JSON format from {url}")
+        return data
+
+    def _catalog_sources(self) -> list[dict]:
+        return [
+            {
+                "name": "official",
+                "label": "Official",
+                "kind": "official",
+                "catalog_url": HF_VOICES_JSON,
+                "base_url": HF_MODEL_BASE,
+            },
+            {
+                "name": "vi_voice",
+                "label": "Unofficial - Vietnamese",
+                "kind": "index",
+                "catalog_url": "https://huggingface.co/sannht/vi_voice/raw/main/index.json",
+                "base_url": "https://huggingface.co/sannht/vi_voice/resolve/main",
+            },
+            {
+                "name": "agentvibes",
+                "label": "Unofficial - AgentVibes",
+                "kind": "static",
+                "base_url": "https://huggingface.co/agentvibes/piper-custom-voices/resolve/main",
+                "items": [
+                    {
+                        "id": "kristin",
+                        "name": "Kristin",
+                        "language": "en",
+                        "quality": "medium",
+                        "num_speakers": 1,
+                        "onnx_rel": "kristin.onnx",
+                        "onnx_json_rel": "kristin.onnx.json",
+                    },
+                    {
+                        "id": "jenny",
+                        "name": "Jenny",
+                        "language": "en-gb",
+                        "quality": "high",
+                        "num_speakers": 1,
+                        "onnx_rel": "jenny.onnx",
+                        "onnx_json_rel": "jenny.onnx.json",
+                    },
+                    {
+                        "id": "tracy",
+                        "name": "Tracy (ManyVoice)",
+                        "language": "en",
+                        "quality": "medium",
+                        "num_speakers": 16,
+                        "onnx_rel": "tracy.onnx",
+                        "onnx_json_rel": "tracy.onnx.json",
+                    },
+                ],
+            },
+        ]
+
+    @staticmethod
     def _safe_name(name: str) -> str:
         cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", name.strip())
         return cleaned or "voice"
@@ -50,6 +117,12 @@ class VoiceModelRegistry:
         if not isinstance(files, dict):
             return None, None
 
+        if "onnx" in files and "json" in files:
+            onnx_rel = files.get("onnx")
+            cfg_rel = files.get("json")
+            if isinstance(onnx_rel, str) and isinstance(cfg_rel, str):
+                return onnx_rel, cfg_rel
+
         onnx_rel = None
         cfg_rel = None
         for rel in files.keys():
@@ -76,53 +149,123 @@ class VoiceModelRegistry:
             return self._catalog
 
         if not force and self._catalog_cache.exists():
+            cached = self._read_json(self._catalog_cache)
+            if isinstance(cached, dict) and cached:
+                first_item = next(iter(cached.values()))
+                if isinstance(first_item, dict) and "source" in first_item:
+                    self._catalog = cached
+                    return self._catalog
+
+        merged: dict[str, dict] = {}
+        fetch_errors: list[str] = []
+
+        for source in self._catalog_sources():
+            try:
+                if source["kind"] == "official":
+                    catalog = self._url_json(source["catalog_url"])
+                    for key, meta in catalog.items():
+                        if not isinstance(meta, dict):
+                            continue
+                        onnx_rel, cfg_rel = self._extract_file_paths(meta)
+                        if not onnx_rel or not cfg_rel:
+                            continue
+
+                        unique_key = f"{source['name']}::{key}"
+                        merged[unique_key] = {
+                            "key": unique_key,
+                            "source": source["label"],
+                            "base_url": source["base_url"],
+                            "name": str(meta.get("name") or key),
+                            "language": self._language_code(meta),
+                            "quality": str(meta.get("quality", "")),
+                            "num_speakers": int(meta.get("num_speakers", 1) or 1),
+                            "speaker_id_map": meta.get("speaker_id_map", {}) or {},
+                            "size_mb": self._onnx_size_mb(meta),
+                            "onnx_rel": onnx_rel,
+                            "onnx_json_rel": cfg_rel,
+                            "installed": False,
+                        }
+                elif source["kind"] == "index":
+                    catalog = self._url_json(source["catalog_url"])
+                    for voice in catalog.get("voices", []):
+                        if not isinstance(voice, dict):
+                            continue
+                        files = voice.get("files", {})
+                        if not isinstance(files, dict):
+                            continue
+                        onnx_rel = files.get("onnx")
+                        cfg_rel = files.get("json")
+                        if not isinstance(onnx_rel, str) or not isinstance(cfg_rel, str):
+                            continue
+
+                        unique_key = f"{source['name']}::{voice.get('id', onnx_rel)}"
+                        size_bytes = voice.get("size_bytes", {})
+                        onnx_size = 0
+                        if isinstance(size_bytes, dict):
+                            onnx_size = int(size_bytes.get("onnx", 0) or 0)
+
+                        merged[unique_key] = {
+                            "key": unique_key,
+                            "source": source["label"],
+                            "base_url": source["base_url"],
+                            "name": str(voice.get("name") or voice.get("id") or onnx_rel),
+                            "language": str(voice.get("language", "")),
+                            "quality": str(voice.get("quality") or voice.get("piper_version") or ""),
+                            "num_speakers": int(voice.get("num_speakers", 1) or 1),
+                            "speaker_id_map": voice.get("speaker_id_map", {}) or {},
+                            "size_mb": float(onnx_size) / (1024 * 1024) if onnx_size else 0.0,
+                            "onnx_rel": onnx_rel,
+                            "onnx_json_rel": cfg_rel,
+                            "installed": False,
+                        }
+                elif source["kind"] == "static":
+                    for voice in source.get("items", []):
+                        if not isinstance(voice, dict):
+                            continue
+                        unique_key = f"{source['name']}::{voice['id']}"
+                        merged[unique_key] = {
+                            "key": unique_key,
+                            "source": source["label"],
+                            "base_url": source["base_url"],
+                            "name": str(voice.get("name") or voice["id"]),
+                            "language": str(voice.get("language", "")),
+                            "quality": str(voice.get("quality", "")),
+                            "num_speakers": int(voice.get("num_speakers", 1) or 1),
+                            "speaker_id_map": voice.get("speaker_id_map", {}) or {},
+                            "size_mb": float(voice.get("size_mb", 0.0) or 0.0),
+                            "onnx_rel": str(voice["onnx_rel"]),
+                            "onnx_json_rel": str(voice["onnx_json_rel"]),
+                            "installed": False,
+                        }
+            except Exception as e:
+                fetch_errors.append(f"{source['name']}: {e}")
+
+        if merged:
+            installed_stems = {Path(m["path"]).stem for m in self.list_installed()}
+            for item in merged.values():
+                model_stem = Path(item["onnx_rel"]).stem
+                item["installed"] = model_stem in installed_stems or Path(item["key"]).stem in installed_stems
+
+            self._catalog = merged
+            self._write_json(self._catalog_cache, merged)
+            return self._catalog
+
+        if self._catalog_cache.exists():
             self._catalog = self._read_json(self._catalog_cache)
             return self._catalog
 
-        try:
-            with urllib.request.urlopen(HF_VOICES_JSON, timeout=30) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            if not isinstance(data, dict):
-                raise ValueError("Unexpected catalog format")
-            self._catalog = data
-            self._write_json(self._catalog_cache, data)
-            return self._catalog
-        except Exception:
-            if self._catalog_cache.exists():
-                self._catalog = self._read_json(self._catalog_cache)
-                return self._catalog
-            raise
+        if fetch_errors:
+            raise RuntimeError("Failed to load any voice catalogs: " + "; ".join(fetch_errors))
+        raise RuntimeError("No voice catalogs available")
 
     def _catalog_items(self) -> list[dict]:
         catalog = self.fetch_catalog(force=False)
-        installed = {m["name"] for m in self.list_installed()}
 
         items = []
         for key, meta in catalog.items():
             if not isinstance(meta, dict):
                 continue
-            onnx_rel, cfg_rel = self._extract_file_paths(meta)
-            if not onnx_rel or not cfg_rel:
-                continue
-
-            display_name = str(meta.get("name") or key)
-            language = self._language_code(meta)
-            quality = str(meta.get("quality", ""))
-            num_speakers = int(meta.get("num_speakers", 1) or 1)
-            size_mb = self._onnx_size_mb(meta)
-
-            items.append({
-                "key": str(key),
-                "name": display_name,
-                "language": language,
-                "quality": quality,
-                "num_speakers": num_speakers,
-                "speaker_id_map": meta.get("speaker_id_map", {}) or {},
-                "size_mb": size_mb,
-                "onnx_rel": onnx_rel,
-                "onnx_json_rel": cfg_rel,
-                "installed": str(key) in installed,
-            })
+            items.append(meta)
 
         items.sort(key=lambda x: (x["language"], x["name"], x["quality"]))
         return items
@@ -249,8 +392,10 @@ class VoiceModelRegistry:
         if not isinstance(meta, dict):
             raise KeyError(f"Voice key not found: {key}")
 
-        onnx_rel, cfg_rel = self._extract_file_paths(meta)
-        if not onnx_rel or not cfg_rel:
+        onnx_rel = meta.get("onnx_rel")
+        cfg_rel = meta.get("onnx_json_rel")
+        base_url = str(meta.get("base_url", HF_MODEL_BASE))
+        if not isinstance(onnx_rel, str) or not isinstance(cfg_rel, str):
             raise ValueError(f"Voice entry has no model files: {key}")
 
         model_name = self._safe_name(local_name or key)
@@ -268,8 +413,8 @@ class VoiceModelRegistry:
         tmp_onnx = out_onnx.with_suffix(out_onnx.suffix + ".part")
         tmp_cfg = out_cfg.with_suffix(out_cfg.suffix + ".part")
 
-        onnx_url = f"{HF_MODEL_BASE}/{onnx_rel}"
-        cfg_url = f"{HF_MODEL_BASE}/{cfg_rel}"
+        onnx_url = self._join_url(base_url, onnx_rel)
+        cfg_url = self._join_url(base_url, cfg_rel)
 
         try:
             self._download_file(onnx_url, tmp_onnx, progress_callback, total_offset=0, total_size=total_size)

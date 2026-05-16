@@ -195,6 +195,9 @@ class MainWindow(QMainWindow):
 
     def _on_voice_models_changed(self):
         self._presenter_mgr._refresh_voice_models()
+        row = self._presenter_mgr._list.currentRow()
+        if row >= 0:
+            self._presenter_mgr._on_selected(row)
 
     def _on_voice_model_renamed(self, old_path, new_path):
         if not self._project:

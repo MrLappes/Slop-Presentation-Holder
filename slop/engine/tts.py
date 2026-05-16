@@ -1,12 +1,80 @@
 """Text-to-speech engine using Piper TTS with caching."""
 
 import hashlib
+import os
 import tempfile
+import sys
 import wave
 from pathlib import Path
 
 from piper.voice import PiperVoice
 from piper.config import SynthesisConfig
+
+
+_ESPEAK_DATA_PATCHED = False
+
+
+def _resolve_espeak_data_path() -> Path:
+    """Find an espeak-ng data directory that exists in the current runtime."""
+    env_candidates = (
+        os.environ.get("PIPER_ESPEAK_DATA_PATH"),
+        os.environ.get("ESPEAK_DATA_PATH"),
+        os.environ.get("ESPEAK_DATA_DIR"),
+    )
+    for raw_path in env_candidates:
+        if raw_path:
+            candidate = Path(raw_path).expanduser()
+            if candidate.exists():
+                return candidate
+
+    try:
+        import piper_phonemize
+
+        package_dir = Path(piper_phonemize.__file__).resolve().parent
+        candidate = package_dir / "espeak-ng-data"
+        if candidate.exists():
+            return candidate
+    except Exception:
+        pass
+
+    bundle_candidates = []
+    frozen_dir = Path(getattr(sys, "_MEIPASS", "")) if hasattr(sys, "_MEIPASS") else None
+    if frozen_dir:
+        bundle_candidates.append(frozen_dir / "piper_phonemize" / "espeak-ng-data")
+        bundle_candidates.append(frozen_dir / "espeak-ng-data")
+
+    bundle_candidates.extend([
+        Path("/usr/lib/x86_64-linux-gnu/espeak-ng-data"),
+        Path("/usr/share/espeak-ng-data"),
+        Path("/usr/local/share/espeak-ng-data"),
+        Path("/usr/share/espeak-data"),
+    ])
+
+    for candidate in bundle_candidates:
+        if candidate.exists():
+            return candidate
+
+    raise FileNotFoundError(
+        "Could not find an espeak-ng data directory. Set PIPER_ESPEAK_DATA_PATH to a valid path."
+    )
+
+
+def _patch_piper_espeak_phonemizer() -> None:
+    """Force piper's phonemizer to use an existing espeak-ng data directory."""
+    global _ESPEAK_DATA_PATCHED
+    if _ESPEAK_DATA_PATCHED:
+        return
+
+    from piper import voice as piper_voice_module
+    from piper_phonemize import phonemize_espeak as base_phonemize_espeak
+
+    data_path = _resolve_espeak_data_path()
+
+    def phonemize_espeak_with_data_path(text: str, voice: str, data_path_override=None):
+        return base_phonemize_espeak(text, voice, data_path_override or data_path)
+
+    piper_voice_module.phonemize_espeak = phonemize_espeak_with_data_path
+    _ESPEAK_DATA_PATCHED = True
 
 
 class TTSEngine:
@@ -18,6 +86,7 @@ class TTSEngine:
     def __init__(self, voices_dir: Path):
         self._voices_dir = voices_dir
         self._loaded_voices: dict[str, PiperVoice] = {}
+        _patch_piper_espeak_phonemizer()
 
     def _get_voice(self, model_path: str | Path) -> PiperVoice:
         """Load a voice model, or return it from cache if already loaded."""

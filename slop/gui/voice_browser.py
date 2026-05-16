@@ -113,12 +113,12 @@ class VoiceBrowser(QWidget):
         catalog_layout.addLayout(filter_row)
 
         self._catalog_table = QTableWidget()
-        self._catalog_table.setColumnCount(6)
+        self._catalog_table.setColumnCount(7)
         self._catalog_table.setHorizontalHeaderLabels(
-            ["Language", "Name", "Quality", "Speakers", "Size", ""]
+            ["Source", "Language", "Name", "Quality", "Speakers", "Size", ""]
         )
         self._catalog_table.horizontalHeader().setSectionResizeMode(
-            1, QHeaderView.ResizeMode.Stretch
+            2, QHeaderView.ResizeMode.Stretch
         )
         self._catalog_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._catalog_table.verticalHeader().setVisible(False)
@@ -276,24 +276,29 @@ class VoiceBrowser(QWidget):
     def _populate_catalog_table(self):
         self._catalog_table.setRowCount(len(self._available))
         for row, voice in enumerate(self._available):
-            self._catalog_table.setItem(row, 0, QTableWidgetItem(voice.get("language", "")))
+            self._catalog_table.setItem(row, 0, QTableWidgetItem(voice.get("source", "")))
             self._catalog_table.setItem(
-                row, 1, QTableWidgetItem(voice.get("name", voice.get("key", "")))
+                row, 1, QTableWidgetItem(voice.get("language", ""))
             )
-            self._catalog_table.setItem(row, 2, QTableWidgetItem(voice.get("quality", "")))
             self._catalog_table.setItem(
-                row, 3, QTableWidgetItem(str(voice.get("num_speakers", 1)))
+                row, 2, QTableWidgetItem(voice.get("name", voice.get("key", "")))
+            )
+            self._catalog_table.setItem(
+                row, 3, QTableWidgetItem(voice.get("quality", ""))
             )
             size = voice.get("size_mb", 0)
             self._catalog_table.setItem(
-                row, 4, QTableWidgetItem(f"{size:.0f} MB" if size else "?")
+                row, 4, QTableWidgetItem(str(voice.get("num_speakers", 1)))
+            )
+            self._catalog_table.setItem(
+                row, 5, QTableWidgetItem(f"{size:.0f} MB" if size else "?")
             )
 
             btn = QPushButton("Installed" if voice.get("installed") else "Download")
             btn.setEnabled(not voice.get("installed", False))
             btn.setProperty("voice_key", voice["key"])
             btn.clicked.connect(self._on_download_clicked)
-            self._catalog_table.setCellWidget(row, 5, btn)
+            self._catalog_table.setCellWidget(row, 6, btn)
 
     def _on_download_clicked(self):
         btn = self.sender()
