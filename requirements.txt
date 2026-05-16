@@ -1,4 +1,4 @@
-piper-tts
+piper-tts==1.4.2
 pymupdf
 pygame
 Pillow
