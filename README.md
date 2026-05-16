@@ -30,7 +30,11 @@ powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1
 
 Artifacts are created under `dist/SlopPresentationHolder`.
 
-To build all OS artifacts automatically, run the GitHub Actions workflow "Build Desktop Apps" (manual trigger) or push a tag like `v1.0.0`.
+To build all OS artifacts automatically:
+
+- Push to `master` to publish/update a `nightly` prerelease with Linux/macOS/Windows assets.
+- Push a tag like `v1.0.0` to create a versioned GitHub Release with assets.
+- You can also run the workflow manually from GitHub Actions.
 
 ## Quick Start (Docker)
 
