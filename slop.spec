@@ -1,15 +1,15 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_dynamic_libs
 
 block_cipher = None
 
 hiddenimports = collect_submodules("piper")
+hiddenimports += collect_submodules("piper_phonemize")
 hiddenimports += [
     "pygame",
     "slop.voices",
     "slop.voices.model_registry",
-    "piper_phonemize",
 ]
 
 datas = [
@@ -17,12 +17,16 @@ datas = [
     ("morshu-zelda.gif", "."),
     ("Agentic_Shield_Zero_Trust.pdf", "."),
 ]
+
 datas += collect_data_files("piper_phonemize")
+
+# Collect compiled shared libraries (extension modules) from piper_phonemize
+piper_phonemize_binaries = collect_dynamic_libs("piper_phonemize")
 
 a = Analysis(
     ["slop.py"],
     pathex=["."],
-    binaries=[],
+    binaries=piper_phonemize_binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
