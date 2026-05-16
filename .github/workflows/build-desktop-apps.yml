@@ -57,10 +57,20 @@ jobs:
           sudo apt-get install -y build-essential pkg-config cmake ninja-build \
             libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
             libfreetype6-dev libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev \
-            libespeak-ng-dev libprotobuf-dev protobuf-compiler libssl-dev zlib1g-dev
+            libespeak-ng-dev libprotobuf-dev protobuf-compiler libssl-dev zlib1g-dev \
+            onnxruntime-dev
 
           # Ensure pkg-config is available for freetype detection
           export PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH" || true
+
+      - name: Install macOS Homebrew dependencies
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install espeak-ng pkg-config cmake ninja onnxruntime
+          # macOS Homebrew headers typically live in /opt/homebrew/include or /usr/local/include
+          export BREW_PREFIX=$(brew --prefix)
+          export CPATH="$BREW_PREFIX/include:/usr/include:$CPATH"
 
       - name: Install Python build dependencies (CI only)
         if: runner.os == 'Linux' || runner.os == 'macOS'
