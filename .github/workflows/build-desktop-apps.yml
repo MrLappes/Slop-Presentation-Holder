@@ -53,10 +53,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y espeak-ng ffmpeg libegl1 libgl1 libxkbcommon-x11-0 libdbus-1-3
           sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
-          # Packages required to build pygame and related Python extensions
-          sudo apt-get install -y build-essential pkg-config \
+          # Packages required to build pygame, piper_phonemize and related C/C++ extensions
+          sudo apt-get install -y build-essential pkg-config cmake ninja-build \
             libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
-            libfreetype6-dev libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev
+            libfreetype6-dev libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev \
+            libespeak-ng-dev libprotobuf-dev protobuf-compiler libssl-dev zlib1g-dev
 
           # Ensure pkg-config is available for freetype detection
           export PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH" || true
@@ -65,6 +66,8 @@ jobs:
         if: runner.os == 'Linux' || runner.os == 'macOS'
         run: |
           python -m pip install --upgrade pip setuptools wheel
+          # Install onnxruntime wheel first to provide runtime and headers where possible
+          python -m pip install --upgrade onnxruntime
           # Install piper-phonemize into the runner environment so PyInstaller bundles it
           python -m pip install --no-deps git+https://github.com/rhasspy/piper-phonemize.git
           # Install remaining Python requirements and PyInstaller
