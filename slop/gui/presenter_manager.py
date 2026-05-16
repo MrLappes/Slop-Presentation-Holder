@@ -78,6 +78,8 @@ class PresenterManager(QWidget):
 
         self._voice_combo = QComboBox()
         self._voice_combo.currentTextChanged.connect(self._on_field_changed)
+        # When the model selection changes, refresh available speaker IDs immediately
+        self._voice_combo.currentIndexChanged.connect(self._on_voice_model_changed)
         voice_layout.addRow("Model:", self._voice_combo)
 
         self._speaker_combo = QComboBox()
@@ -318,6 +320,15 @@ class PresenterManager(QWidget):
             self._list.item(row).setIcon(QIcon(pm))
 
         self.presenters_changed.emit()
+
+    def _on_voice_model_changed(self, *_):
+        """Handle immediate updates when the voice model selection changes."""
+        if self._updating:
+            return
+        # Update speaker id list to reflect the newly selected model
+        self._update_speaker_ids()
+        # Persist the change to the presenter config
+        self._on_field_changed()
 
     def _on_add(self):
         if not self._project:
