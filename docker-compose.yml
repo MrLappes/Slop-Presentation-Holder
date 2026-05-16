@@ -1,0 +1,15 @@
+services:
+  slop:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: slop-presentation-holder:latest
+    container_name: slop-presentation-holder
+    working_dir: /app
+    environment:
+      SLOP_DOWNLOAD_DEFAULT_VOICES: ${SLOP_DOWNLOAD_DEFAULT_VOICES:-1}
+    volumes:
+      - ./:/app
+    stdin_open: true
+    tty: true
+    command: ["python", "slop.py"]

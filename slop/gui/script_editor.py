@@ -21,6 +21,7 @@ class ScriptEditor(QWidget):
         self._current_idx = -1
         self._updating = False
         self._player = None
+        self._preview_wav_path = None
         self._playback_timer = QTimer(self)
         self._playback_timer.setInterval(250)
         self._playback_timer.timeout.connect(self._check_playback)
@@ -206,11 +207,23 @@ class ScriptEditor(QWidget):
             self._player.stop()
         self._playback_timer.stop()
         self._preview_btn.setText("Preview Audio")
+        self._cleanup_preview_wav()
+
+    def _cleanup_preview_wav(self):
+        if self._preview_wav_path:
+            try:
+                p = Path(self._preview_wav_path)
+                if p.exists():
+                    p.unlink()
+            except Exception:
+                pass
+            self._preview_wav_path = None
 
     def _check_playback(self):
         if not self._player or not self._player.is_playing():
             self._playback_timer.stop()
             self._preview_btn.setText("Preview Audio")
+            self._cleanup_preview_wav()
 
     def _on_preview_audio(self):
         if self._current_idx < 0 or not self._project:
@@ -248,6 +261,8 @@ class ScriptEditor(QWidget):
                 str(self._project.resolve_voice_model(slide.presenter)),
                 tts_params,
             )
+            self._cleanup_preview_wav()
+            self._preview_wav_path = str(wav_path)
             if not self._player:
                 self._player = AudioPlayer()
             self._player.play(wav_path)

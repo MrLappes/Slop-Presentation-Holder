@@ -10,4 +10,9 @@ __pycache__/
 audio_cache/
 
 # Voice models (downloaded via setup.sh, ~300MB)
-voices/
+/voices/
+
+# Native build artifacts
+build/
+dist/
+*.egg-info/

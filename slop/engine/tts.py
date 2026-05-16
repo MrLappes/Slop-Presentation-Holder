@@ -43,9 +43,19 @@ class TTSEngine:
             noise_w_scale=tts_params.get("noise_w_scale", 0.8),
         )
 
+        speaker_id = tts_params.get("speaker_id")
+        synth_kwargs = {}
+        if speaker_id is not None:
+            synth_kwargs["speaker_id"] = speaker_id
+
         audio_bytes = b""
-        for chunk in voice.synthesize(text, syn_config):
-            audio_bytes += chunk.audio_int16_bytes
+        try:
+            for chunk in voice.synthesize(text, syn_config, **synth_kwargs):
+                audio_bytes += chunk.audio_int16_bytes
+        except TypeError:
+            # Backward-compat for older piper-tts versions without speaker_id arg.
+            for chunk in voice.synthesize(text, syn_config):
+                audio_bytes += chunk.audio_int16_bytes
 
         sample_rate = voice.config.sample_rate
         channels = 1

@@ -20,6 +20,7 @@ from slop.gui.voice_browser import VoiceBrowser
 class AudioGenThread(QThread):
     progress = pyqtSignal(int, int)
     finished_ok = pyqtSignal()
+    cancelled = pyqtSignal()
     error = pyqtSignal(str)
 
     def __init__(self, project):
@@ -31,13 +32,21 @@ class AudioGenThread(QThread):
             from slop.engine.tts import TTSEngine
             engine_dict = self._project.to_engine_dict()
             engine = TTSEngine(self._project.base_dir / "voices")
+
+            def _on_progress(cur, tot):
+                if self.isInterruptionRequested():
+                    raise InterruptedError("Audio generation cancelled")
+                self.progress.emit(cur, tot)
+
             engine.generate_all(
                 engine_dict["slides"],
                 engine_dict["presenters"],
                 Path(engine_dict["cache_dir"]),
-                progress_callback=lambda cur, tot: self.progress.emit(cur, tot),
+                progress_callback=_on_progress,
             )
             self.finished_ok.emit()
+        except InterruptedError:
+            self.cancelled.emit()
         except Exception as e:
             self.error.emit(str(e))
 
@@ -354,8 +363,9 @@ class MainWindow(QMainWindow):
         self._gen_thread = AudioGenThread(self._project)
         self._gen_thread.progress.connect(lambda cur, tot: progress.setValue(cur))
         self._gen_thread.finished_ok.connect(lambda: self._on_gen_done(progress))
+        self._gen_thread.cancelled.connect(lambda: self._on_gen_cancelled(progress))
         self._gen_thread.error.connect(lambda e: self._on_gen_error(progress, e))
-        progress.canceled.connect(self._gen_thread.terminate)
+        progress.canceled.connect(self._gen_thread.requestInterruption)
         self._gen_thread.start()
 
     def _on_gen_done(self, progress):
@@ -367,6 +377,10 @@ class MainWindow(QMainWindow):
         progress.close()
         self._gen_thread = None
         QMessageBox.critical(self, "Error", f"Audio generation failed:\n{error}")
+
+    def _on_gen_cancelled(self, progress):
+        progress.close()
+        self._gen_thread = None
 
     # ── MP4 export ────────────────────────────────────────────────
 

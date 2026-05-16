@@ -1,0 +1,64 @@
+name: Build Desktop Apps
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: SlopPresentationHolder-linux
+            package_cmd: tar -czf SlopPresentationHolder-linux.tar.gz -C dist SlopPresentationHolder
+            package_file: SlopPresentationHolder-linux.tar.gz
+            build_cmd: bash scripts/build-linux.sh
+          - os: macos-latest
+            artifact_name: SlopPresentationHolder-macos
+            package_cmd: zip -r SlopPresentationHolder-macos.zip dist/SlopPresentationHolder
+            package_file: SlopPresentationHolder-macos.zip
+            build_cmd: bash scripts/build-macos.sh
+          - os: windows-latest
+            artifact_name: SlopPresentationHolder-windows
+            package_cmd: Compress-Archive -Path dist/SlopPresentationHolder/* -DestinationPath SlopPresentationHolder-windows.zip -Force
+            package_file: SlopPresentationHolder-windows.zip
+            build_cmd: powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y espeak-ng ffmpeg libegl1 libgl1 libxkbcommon-x11-0 libasound2 libdbus-1-3
+
+      - name: Build app
+        run: ${{ matrix.build_cmd }}
+
+      - name: Package artifact (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: ${{ matrix.package_cmd }}
+
+      - name: Package artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ${{ matrix.package_cmd }}
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.package_file }}

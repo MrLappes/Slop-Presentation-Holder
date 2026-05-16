@@ -2,15 +2,101 @@
 
 Auto-presenting PDF slide deck with multi-personality TTS narration, animated speaker avatar, and a full desktop GUI for creating and managing presentations.
 
-## Quick Start (Docker)
+## Desktop App Builds (Recommended)
+
+This repo now includes native desktop packaging for Linux, macOS, and Windows.
+
+- Workflow: `.github/workflows/build-desktop-apps.yml`
+- PyInstaller spec: `slop.spec`
+- Build scripts:
+  - `scripts/build-linux.sh`
+  - `scripts/build-macos.sh`
+  - `scripts/build-windows.ps1`
+
+Run local builds:
 
 ```bash
-docker compose up --build
+# Linux
+bash scripts/build-linux.sh
+
+# macOS
+bash scripts/build-macos.sh
 ```
 
-Open **http://localhost:6080** in your browser. The full GUI runs inside the container and streams to your browser via noVNC.
+```powershell
+# Windows (PowerShell)
+powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1
+```
 
-Drop your PDF files into the `projects/` folder to access them from the app.
+Artifacts are created under `dist/SlopPresentationHolder`.
+
+To build all OS artifacts automatically, run the GitHub Actions workflow "Build Desktop Apps" (manual trigger) or push a tag like `v1.0.0`.
+
+## Quick Start (Docker)
+
+Use the base compose file plus your OS override file.
+
+### Linux (X11)
+
+```bash
+# allow local Docker containers to open windows on your desktop
+xhost +local:docker
+
+# optional but recommended for reliable UID/GID mapping
+export UID=$(id -u)
+export GID=$(id -g)
+
+# run app (PyQt window opens on your host, audio plays via host PulseAudio)
+docker compose -f docker-compose.yml -f docker-compose.linux-x11.yml up --build
+```
+
+When done, remove the relaxed X11 rule:
+
+```bash
+xhost -local:docker
+```
+
+### Linux (Wayland)
+
+```bash
+xhost +local:docker
+export UID=$(id -u)
+export GID=$(id -g)
+
+docker compose -f docker-compose.yml -f docker-compose.linux-wayland.yml up --build
+```
+
+If your Qt build does not expose native Wayland in your distro setup, it falls back to XWayland automatically.
+
+### macOS
+
+```bash
+# 1) install and run XQuartz, then enable "Allow connections from network clients"
+# 2) in an XQuartz terminal: xhost + 127.0.0.1
+
+docker compose -f docker-compose.yml -f docker-compose.mac.yml up --build
+```
+
+For host audio on macOS, run a PulseAudio server on the host and expose TCP port 4713, then set `PULSE_SERVER` if needed.
+
+### Windows (Docker Desktop)
+
+```bash
+# 1) run an X server (VcXsrv or Xming)
+# 2) allow access from Docker Desktop / WSL network
+
+docker compose -f docker-compose.yml -f docker-compose.windows.yml up --build
+```
+
+For host audio on Windows, run a PulseAudio server and expose TCP port 4713.
+
+All project files are mounted into the container, so PDFs/JSON files in this repo are directly available in the app.
+
+### Stop
+
+```bash
+docker compose down
+```
 
 ## Quick Start (Native)
 
@@ -129,4 +215,6 @@ projects/                          # User project files (Docker volume)
 ## Requirements (Docker)
 
 - Docker with Docker Compose
-- A web browser
+- Linux X11 or Wayland session, or an X server on macOS/Windows
+- For live audio preview from container: PulseAudio/PipeWire available on host
+- On Linux native audio path: Pulse socket at `$XDG_RUNTIME_DIR/pulse/native`
