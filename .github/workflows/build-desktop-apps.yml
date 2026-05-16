@@ -17,16 +17,19 @@ jobs:
             package_cmd: tar -czf SlopPresentationHolder-linux.tar.gz -C dist SlopPresentationHolder
             package_file: SlopPresentationHolder-linux.tar.gz
             build_cmd: bash scripts/build-linux.sh
+            bin_path: dist/SlopPresentationHolder/SlopPresentationHolder
           - os: macos-latest
             artifact_name: SlopPresentationHolder-macos
             package_cmd: zip -r SlopPresentationHolder-macos.zip dist/SlopPresentationHolder
             package_file: SlopPresentationHolder-macos.zip
             build_cmd: bash scripts/build-macos.sh
+            bin_path: dist/SlopPresentationHolder/SlopPresentationHolder
           - os: windows-latest
             artifact_name: SlopPresentationHolder-windows
             package_cmd: Compress-Archive -Path dist/SlopPresentationHolder/* -DestinationPath SlopPresentationHolder-windows.zip -Force
             package_file: SlopPresentationHolder-windows.zip
             build_cmd: powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1
+            bin_path: dist/SlopPresentationHolder/SlopPresentationHolder.exe
 
     runs-on: ${{ matrix.os }}
 
@@ -43,10 +46,40 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y espeak-ng ffmpeg libegl1 libgl1 libxkbcommon-x11-0 libasound2 libdbus-1-3
+          sudo apt-get install -y espeak-ng ffmpeg libegl1 libgl1 libxkbcommon-x11-0 libdbus-1-3
+          if apt-cache show libasound2t64 >/dev/null 2>&1; then
+            sudo apt-get install -y libasound2t64
+          else
+            sudo apt-get install -y libasound2
+          fi
+
+      - name: Smoke test Python imports
+        run: |
+          python - <<'PY'
+          import slop.app
+          import slop.project
+          import slop.engine.tts
+          import slop.voices.model_registry
+          print("PY_IMPORT_SMOKE_OK")
+          PY
 
       - name: Build app
         run: ${{ matrix.build_cmd }}
+
+      - name: Smoke check built binary (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          test -f "${{ matrix.bin_path }}"
+          echo "BINARY_SMOKE_OK"
+
+      - name: Smoke check built binary (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          if (!(Test-Path "${{ matrix.bin_path }}")) {
+            Write-Error "Built binary not found: ${{ matrix.bin_path }}"
+          }
+          Write-Host "BINARY_SMOKE_OK"
 
       - name: Package artifact (Linux/macOS)
         if: runner.os != 'Windows'
