@@ -68,6 +68,16 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           # Install onnxruntime wheel first to provide runtime and headers where possible
           python -m pip install --upgrade onnxruntime
+          # Make ONNX include path discoverable for extension builds
+          python - <<'PY'
+          import onnxruntime, os
+          onnx_pkg_dir = os.path.dirname(onnxruntime.__file__)
+          onnx_include = os.path.join(onnx_pkg_dir, 'include')
+          print('ONNX_INCLUDE='+onnx_include)
+          PY
+          # Export CPATH so g++ can find onnxruntime and espeak-ng headers
+          export ONNX_INCLUDE=$(python -c "import onnxruntime, os;print(os.path.join(os.path.dirname(onnxruntime.__file__),'include'))") || true
+          export CPATH="$ONNX_INCLUDE:/usr/include/espeak-ng:$CPATH"
           # Install piper-phonemize into the runner environment so PyInstaller bundles it
           python -m pip install --no-deps git+https://github.com/rhasspy/piper-phonemize.git
           # Install remaining Python requirements and PyInstaller
