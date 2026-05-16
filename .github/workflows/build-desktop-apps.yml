@@ -80,6 +80,11 @@ jobs:
           test -f "${{ matrix.bin_path }}"
           echo "BINARY_SMOKE_OK"
 
+      - name: Smoke check espeak-ng data (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          find dist/SlopPresentationHolder -path "*espeak-ng-data*" | head -n 1
+
       - name: Smoke check built binary (Windows)
         if: runner.os == 'Windows'
         shell: powershell
