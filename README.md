@@ -4,7 +4,7 @@ Auto-presenting PDF slide deck with multi-personality TTS narration, animated sp
 
 ## Desktop App Builds (Recommended)
 
-This repo now includes native desktop packaging for Linux, macOS, and Windows.
+This repo now includes native desktop packaging for Linux, Arch Linux, macOS, and Windows.
 GitHub Actions builds separate Intel and Apple Silicon macOS artifacts.
 
 - Workflow: `.github/workflows/build-desktop-apps.yml`
@@ -33,8 +33,8 @@ Artifacts are created under `dist/SlopPresentationHolder`.
 
 To build all OS artifacts automatically:
 
-- Push to `master` to publish/update a `nightly` prerelease with Linux, macOS Intel, macOS Apple Silicon, and Windows assets.
-- Push a tag like `v1.0.0` to create a versioned GitHub Release with assets.
+- Push to `master` to publish/update a `nightly` prerelease with Linux, Arch Linux, macOS Apple Silicon, and Windows assets first. Intel macOS is attached afterward when its runner finishes.
+- Push a tag like `v1.0.0` to create a versioned GitHub Release with assets. Intel macOS is attached afterward when its runner finishes.
 - You can also run the workflow manually from GitHub Actions.
 
 ## Quick Start (Docker)

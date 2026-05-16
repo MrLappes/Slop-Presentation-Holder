@@ -13,6 +13,7 @@ on:
 
 jobs:
   build:
+    name: Build (${{ matrix.artifact_name }})
     strategy:
       fail-fast: false
       matrix:
@@ -23,13 +24,7 @@ jobs:
             package_file: SlopPresentationHolder-linux.tar.gz
             build_cmd: bash scripts/build-linux.sh
             bin_path: dist/SlopPresentationHolder/SlopPresentationHolder
-          - os: macos-13
-            artifact_name: SlopPresentationHolder-macos-x64
-            package_cmd: zip -r SlopPresentationHolder-macos-x64.zip dist/SlopPresentationHolder
-            package_file: SlopPresentationHolder-macos-x64.zip
-            build_cmd: bash scripts/build-macos.sh
-            bin_path: dist/SlopPresentationHolder/SlopPresentationHolder
-          - os: macos-latest
+          - os: macos-15
             artifact_name: SlopPresentationHolder-macos-arm64
             package_cmd: zip -r SlopPresentationHolder-macos-arm64.zip dist/SlopPresentationHolder
             package_file: SlopPresentationHolder-macos-arm64.zip
@@ -111,9 +106,101 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: ${{ matrix.package_file }}
 
+  build-arch:
+    name: Build (SlopPresentationHolder-archlinux-x86_64)
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+
+    steps:
+      - name: Install Arch build dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm base-devel git nodejs python python-pip python-virtualenv \
+            espeak-ng ffmpeg libglvnd libxkbcommon-x11 dbus gzip alsa-lib libpulse \
+            fontconfig freetype2 libx11 libxcb libxext libxrender \
+            xcb-util-cursor xcb-util-keysyms xcb-util-renderutil xcb-util-wm
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build app
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          bash scripts/build-linux.sh
+
+      - name: Smoke test Python imports
+        run: |
+          . .venv/bin/activate
+          python - <<'PY'
+          from piper import PiperVoice, SynthesisConfig
+          import slop.app
+          import slop.project
+          import slop.engine.tts
+          import slop.voices.model_registry
+          print("PY_IMPORT_SMOKE_OK")
+          PY
+
+      - name: Smoke check built binary
+        run: |
+          test -f dist/SlopPresentationHolder/SlopPresentationHolder
+          echo "BINARY_SMOKE_OK"
+
+      - name: Package artifact
+        run: tar -czf SlopPresentationHolder-archlinux-x86_64.tar.gz -C dist SlopPresentationHolder
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SlopPresentationHolder-archlinux-x86_64
+          path: SlopPresentationHolder-archlinux-x86_64.tar.gz
+
+  build-macos-x64:
+    name: Build (SlopPresentationHolder-macos-x64)
+    runs-on: macos-15-intel
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build app
+        run: bash scripts/build-macos.sh
+
+      - name: Smoke test Python imports
+        run: |
+          python - <<'PY'
+          from piper import PiperVoice, SynthesisConfig
+          import slop.app
+          import slop.project
+          import slop.engine.tts
+          import slop.voices.model_registry
+          print("PY_IMPORT_SMOKE_OK")
+          PY
+
+      - name: Smoke check built binary
+        run: |
+          test -f dist/SlopPresentationHolder/SlopPresentationHolder
+          echo "BINARY_SMOKE_OK"
+
+      - name: Package artifact
+        run: zip -r SlopPresentationHolder-macos-x64.zip dist/SlopPresentationHolder
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SlopPresentationHolder-macos-x64
+          path: SlopPresentationHolder-macos-x64.zip
+
   release:
-    name: Create Tag Release
-    needs: build
+    name: Create Tag Release (Primary Assets)
+    needs:
+      - build
+      - build-arch
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
 
@@ -134,9 +221,33 @@ jobs:
             release-assets/*.zip
             release-assets/*.tar.gz
 
+  release-macos-x64:
+    name: Attach Intel macOS to Tag Release
+    needs:
+      - release
+      - build-macos-x64
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download Intel macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: SlopPresentationHolder-macos-x64
+          path: release-assets
+
+      - name: Attach Intel macOS asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          fail_on_unmatched_files: true
+          files: release-assets/*.zip
+
   release-nightly:
-    name: Create Nightly Prerelease
-    needs: build
+    name: Create Nightly Prerelease (Primary Assets)
+    needs:
+      - build
+      - build-arch
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
 
@@ -160,3 +271,27 @@ jobs:
           files: |
             release-assets/*.zip
             release-assets/*.tar.gz
+
+  release-nightly-macos-x64:
+    name: Attach Intel macOS to Nightly Prerelease
+    needs:
+      - release-nightly
+      - build-macos-x64
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download Intel macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: SlopPresentationHolder-macos-x64
+          path: release-assets
+
+      - name: Attach Intel macOS asset to nightly
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          prerelease: true
+          make_latest: false
+          fail_on_unmatched_files: true
+          files: release-assets/*.zip
